@@ -3,7 +3,7 @@ import DatePicker from 'react-date-picker'
 import 'react-calendar/dist/Calendar.css'
 import 'react-date-picker/dist/DatePicker.css'
 import type {DraftExpense, Value} from "../types/index.ts" 
-import { ChangeEvent, ChangeEventHandler, FormEvent, useEffect, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import ErrorMessage from "./ErrorMessage.tsx";
 import { useBudget } from "../hooks/useBudget.ts";
 
@@ -11,12 +11,14 @@ import { useBudget } from "../hooks/useBudget.ts";
 export default function ExpenseForm() {
     const [expense, setExpense] = useState<DraftExpense>({ amount:0, expenseName: '', category: '', date: new Date()})
     const [error, setError] = useState('')
-    const {dispatch, state} = useBudget()
+    const [previousAmount, setPreviousAmount] = useState(0)
+    const {dispatch, state, remainingBudget} = useBudget()
 
     useEffect(() => {
       if(state.editingId){
         const editingExpense = state.expenses.filter(currentExpense => currentExpense.id === state.editingId)[0]
         setExpense(editingExpense)
+        setPreviousAmount(editingExpense.amount)
       }
     }, [state.editingId])
 
@@ -44,15 +46,25 @@ export default function ExpenseForm() {
         return
       }
 
-      dispatch({type: 'add-expense', payload: { expense }})
+      if((expense.amount - previousAmount) > remainingBudget){
+        setError('Ese gasto se sale del presupuesto')
+        return
+      }
+
+      if(state.editingId){
+        dispatch({type: 'updateExpense', payload: { expense:{id: state.editingId, ...expense} }})
+      }else{
+        dispatch({type: 'add-expense', payload: { expense }})
+      }
 
       setExpense({ amount:0, expenseName: '', category: '', date: new Date()})
+      setPreviousAmount(0)
     }
     
     return (
       <form className="space-y-5" onSubmit={handleSubmit}>
         <legend className="uppercase text-center text-2xl font-black border-b-4 py-2 border-blue-500">
-          Nuevo Gasto
+          {state.editingId ? 'Guardar Cambios' : 'Nuevo Gasto'}
         </legend>
         {error && <ErrorMessage>{error}</ErrorMessage>}
         <div className="flex flex-col gap-2">
@@ -124,7 +136,7 @@ export default function ExpenseForm() {
         <input 
           type="submit" 
           className="bg-blue-600 cursor-pointer w-full p-2 text-white uppercase font-bold rounded-lg"
-          value={'REGISTRAR GASTO'}        
+          value={state.editingId ? 'Actualizar Gasto' : 'Registrar Gasto'}       
         />
       </form>
   )
